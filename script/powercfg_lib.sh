@@ -1,16 +1,16 @@
-#! /vendor/bin/sh
+#! /system/bin/sh
 # Powercfg Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20191214
+# Version: 20191221
 
 ###############################
 # PATHs
 ###############################
 
 module_dir="/data/adb/modules/qti-mem-opt"
-script_rel=/system/vendor/bin/qti-mem-opt
-perfcfg_rel=/system/vendor/etc/perf
+script_rel="./script"
+perfcfg_rel="/system/vendor/etc/perf"
 panel_path="/sdcard/qti_mem_panel.txt"
 
 ###############################
@@ -24,6 +24,8 @@ cpu_dev=/sys/devices/system/cpu
 ksgl=/sys/class/kgsl/kgsl-3d0
 devfreq=/sys/class/devfreq
 lpm=/sys/module/lpm_levels/parameters
+vm=/proc/sys/vm
+lmk=/sys/module/lowmemorykiller/parameters
 
 ###############################
 # Basic tool functions
@@ -82,6 +84,17 @@ read_cfg_value()
         value=`grep "^$1=" "$panel_path" | tr -d ' ' | cut -d= -f2`
     fi
     echo $value
+}
+
+# $1:content
+write_panel()
+{
+    echo "$1" >> $panel_path
+}
+
+clear_panel()
+{
+    true > $panel_path
 }
 
 wait_until_login()

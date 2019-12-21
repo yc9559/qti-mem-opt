@@ -7,5 +7,4 @@
 # CUR_MAX_EMPTY_PROCESSES = CUR_MAX_CACHED_PROCESSES/2
 # working on android 9, not 10
 ro.vendor.qti.sys.fw.bg_apps_limit=600
-ro.vendor.qti.sys.fw.bservice_limit=30
-ro.vendor.qti.sys.fw.bservice_age=86400
+ro.vendor.qti.sys.fw.bservice_limit=60

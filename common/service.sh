@@ -3,4 +3,4 @@
 # This will make your scripts compatible even if Magisk change its mount point in the future
 MODDIR=${0%/*}
 
-/vendor/bin/sh $MODDIR/system/vendor/bin/qti-mem-opt/powercfg_once.sh
+$MODDIR/script/powercfg_once.sh

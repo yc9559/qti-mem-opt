@@ -122,9 +122,10 @@ REPLACE=""
 
 print_modname() {
   ui_print ""
-  ui_print "QTI memory optimization https://github.com/yc9559/qti-mem-opt"
+  ui_print "QTI memory optimization"
+  ui_print "https://github.com/yc9559/qti-mem-opt"
   ui_print "Author: Matt Yang"
-  ui_print "Version: v1 (20191214)"
+  ui_print "Version: v2 (20191221)"
   ui_print ""
 }
 
@@ -135,6 +136,7 @@ on_install() {
   ui_print "- The platform of this device is $target"
   ui_print "- Extracting module files"
   unzip -o "$ZIPFILE" 'system/*' -d $MODPATH >&2
+  unzip -o "$ZIPFILE" 'script/*' -d $MODPATH >&2
 }
 
 # Only some special files require specific permissions
@@ -143,14 +145,13 @@ on_install() {
 
 set_permissions() {
   # The following is the default rule, DO NOT remove
-  set_perm_recursive $MODPATH 0 0 0755 0644
+  set_perm_recursive $MODPATH 0 0 0755 0755
 
   # Here are some examples:
   # set_perm_recursive  $MODPATH/system/lib       0     0       0755      0644
   # set_perm  $MODPATH/system/bin/app_process32   0     2000    0755      u:object_r:zygote_exec:s0
   # set_perm  $MODPATH/system/bin/dex2oat         0     2000    0755      u:object_r:dex2oat_exec:s0
   # set_perm  $MODPATH/system/lib/libart.so       0     0       0644
-  set_perm $MODDIR/system/vendor/bin/qti-mem-opt/powercfg_once.sh 0 2000 0755 u:object_r:vendor_file:s0
 }
 
 # You can add more functions to assist your custom script code

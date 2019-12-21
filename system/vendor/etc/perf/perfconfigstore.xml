@@ -31,6 +31,7 @@ property Name is called. -->
                 <!--System Properties -->
                 <Prop Name="vendor.perf.gestureflingboost.enable" Value="true" />
                 <Prop Name="ro.vendor.qti.sys.fw.bg_apps_limit" Value="601" />
+                <Prop Name="ro.vendor.qti.sys.fw.bservice_limit" Value="61" />
                 <Prop Name="ro.vendor.at_library" Value="libqti-at.so" />
                 <Prop Name="ro.lmk.enable_userspace_lmk" Value="false" />
 
