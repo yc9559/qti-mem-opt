@@ -125,7 +125,7 @@ print_modname() {
   ui_print "QTI memory optimization"
   ui_print "https://github.com/yc9559/qti-mem-opt"
   ui_print "Author: Matt Yang"
-  ui_print "Version: v2 (20191221)"
+  ui_print "Version: v3 (20200104)"
   ui_print ""
 }
 
@@ -137,6 +137,7 @@ on_install() {
   ui_print "- Extracting module files"
   unzip -o "$ZIPFILE" 'system/*' -d $MODPATH >&2
   unzip -o "$ZIPFILE" 'script/*' -d $MODPATH >&2
+  unzip -o "$ZIPFILE" 'bin/*' -d $MODPATH >&2
 }
 
 # Only some special files require specific permissions

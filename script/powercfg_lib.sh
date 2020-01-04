@@ -1,31 +1,35 @@
-#! /system/bin/sh
+#!/system/bin/sh
 # Powercfg Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20191221
+# Version: 20200104
+
+# include PATH
+BASEDIR="$(dirname "$0")"
+. $BASEDIR/pathinfo.sh
 
 ###############################
 # PATHs
 ###############################
 
-module_dir="/data/adb/modules/qti-mem-opt"
-script_rel="./script"
-perfcfg_rel="/system/vendor/etc/perf"
-panel_path="/sdcard/qti_mem_panel.txt"
+PERFCFG_REL="./system/vendor/etc/perf"
 
 ###############################
 # Abbreviations
 ###############################
 
-sched=/proc/sys/kernel
-cpufreq=/sys/devices/system/cpu/cpufreq
-cpu_boost=/sys/module/cpu_boost/parameters
-cpu_dev=/sys/devices/system/cpu
-ksgl=/sys/class/kgsl/kgsl-3d0
-devfreq=/sys/class/devfreq
-lpm=/sys/module/lpm_levels/parameters
-vm=/proc/sys/vm
-lmk=/sys/module/lowmemorykiller/parameters
+SCHED="/proc/sys/kernel"
+CPUFREQ="/sys/devices/system/cpu/cpufreq"
+CPU_BOOST="/sys/module/cpu_boost/parameters"
+CPU_DEV="/sys/devices/system/cpu"
+KSGL="/sys/class/kgsl/kgsl-3d0"
+DEVFREQ="/sys/class/devfreq"
+LPM="/sys/module/lpm_levels/parameters"
+VM="/proc/sys/vm"
+LMK="/sys/module/lowmemorykiller/parameters"
+ZRAM0="/sys/block/zram0"
+ZRAM1="/sys/block/zram1"
+ZRAM_DEV="/dev/block/zram0"
 
 ###############################
 # Basic tool functions
@@ -34,31 +38,28 @@ lmk=/sys/module/lowmemorykiller/parameters
 # $1:value $2:file path
 lock_val() 
 {
-    if [ -f $2 ]; then
-        chmod 0666 $2
-        echo $1 > $2
-        chmod 0444 $2
+    if [ -f "$2" ]; then
+        chmod 0666 "$2"
+        echo "$1" > "$2"
+        chmod 0444 "$2"
     fi
 }
 
 # $1:value $2:file path
 mutate() 
 {
-    if [ -f $2 ]; then
-        chmod 0666 $2
-        echo $1 > $2
+    if [ -f "$2" ]; then
+        chmod 0666 "$2"
+        echo "$1" > "$2"
     fi
 }
 
 # $1:task_name $2:cgroup_name $3:"cpuset"/"stune"
 change_task_cgroup()
 {
-    temp_pids=`ps -Ao PID,ARGS | grep "$1" | awk '{print $1}'`
-    for temp_pid in $temp_pids
-    do
-        for temp_tid in `ls /proc/$temp_pid/task/`
-        do
-            echo $temp_tid > /dev/$3/$2/tasks
+    for temp_pid in $(ps -Ao pid,args | grep "$1" | awk '{print $1}'); do
+        for temp_tid in $(ls "/proc/$temp_pid/task/"); do
+            echo "$temp_tid" > "/dev/$3/$2/tasks"
         done
     done
 }
@@ -66,45 +67,103 @@ change_task_cgroup()
 # $1:task_name $2:hex_mask(0x00000003 is CPU0 and CPU1)
 change_task_affinity()
 {
-    temp_pids=`ps -Ao PID,ARGS | grep "$1" | awk '{print $1}'`
-    for temp_pid in $temp_pids
-    do
-        for temp_tid in `ls /proc/$temp_pid/task/`
-        do
-            taskset -p $2 $temp_tid
+    for temp_pid in $(ps -Ao pid,args | grep "$1" | awk '{print $1}'); do
+        for temp_tid in $(ls "/proc/$temp_pid/task/"); do
+            taskset -p "$2" "$temp_tid"
         done
     done
 }
 
+get_total_mem_byte()
+{
+    local mem_total_str
+    mem_total_str="$(cat /proc/meminfo | grep MemTotal)"
+    echo "${mem_total_str:16:8}"
+}
+
+###############################
+# Config File Operator
+###############################
+
 # $1:key $return:value(string)
 read_cfg_value()
 {
-    value=""
-    if [ -f $panel_path ]; then
-        value=`grep "^$1=" "$panel_path" | tr -d ' ' | cut -d= -f2`
+    local value=""
+    if [ -f "$PANEL_FILE" ]; then
+        value="$(grep "^$1=" "$PANEL_FILE" | tr -d ' ' | cut -d= -f2)"
     fi
-    echo $value
+    echo "$value"
 }
 
 # $1:content
 write_panel()
 {
-    echo "$1" >> $panel_path
+    echo "$1" >> "$PANEL_FILE"
 }
 
 clear_panel()
 {
-    true > $panel_path
+    true > "$PANEL_FILE"
 }
 
 wait_until_login()
 {
     # we doesn't have the permission to rw "/sdcard" before the user unlocks the screen
-    while [ ! -e $panel_path ] 
-    do
-        touch $panel_path
+    while [ ! -f "$PANEL_FILE" ]; do
+        touch "$PANEL_FILE"
         sleep 2
     done
+}
+
+###############################
+# ZRAM
+###############################
+
+stop_zram()
+{
+    # LG devices may have 2 zram block devices
+    swapoff $ZRAM_DEV
+    swapoff /dev/block/zram1
+    mutate "1" $ZRAM0/reset
+    mutate "1" $ZRAM1/reset
+    mutate "0" $ZRAM0/disksize
+    mutate "0" $ZRAM0/mem_limit
+    mutate "0" $ZRAM1/disksize
+    mutate "0" $ZRAM1/mem_limit
+}
+
+# $1:disksize $2:mem_lim $3:alg
+start_zram()
+{
+    stop_zram
+    lock_val "$3" $ZRAM0/comp_algorithm
+    # bigger zram means more blocked IO caused by the zram block device swapping out
+    lock_val "$1" $ZRAM0/disksize
+    lock_val "$2" $ZRAM0/mem_limit
+    mkswap $ZRAM_DEV
+    swapon $ZRAM_DEV -p 23333
+    # zram doesn't need much read ahead(random read)
+    lock_val "0" $ZRAM0/queue/read_ahead_kb
+    lock_val "0" $VM/page-cluster
+}
+
+get_available_comp_alg()
+{
+    # "lz4 [lzo] deflate"
+    # remove '[' and ']'
+    echo "$(cat $ZRAM0/comp_algorithm | sed "s/\[//g" | sed "s/\]//g")"
+}
+
+get_cur_comp_alg()
+{
+    local str
+    # "lz4 [lzo] deflate"
+    str="$(cat $ZRAM0/comp_algorithm)"
+    # remove "lz4 ["
+    str=${str#*[}
+    # remove "] deflate"
+    str=${str%]*}
+    echo "$str"
 }
 
 ###############################
@@ -129,5 +188,5 @@ start_qti_perfd()
 update_qti_perfd()
 {
     rm /data/vendor/perfd/default_values
-    cp -af $module_dir/$perfcfg_rel/perfd_profiles/$1/* $module_dir/$perfcfg_rel/
+    cp -af "$MODULE_PATH/$PERFCFG_REL/perfd_profiles/$1/*" "$MODULE_PATH/$PERFCFG_REL/"
 }
