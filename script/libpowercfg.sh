@@ -2,7 +2,7 @@
 # Powercfg Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200104
+# Version: 20200214
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -25,11 +25,11 @@ CPU_DEV="/sys/devices/system/cpu"
 KSGL="/sys/class/kgsl/kgsl-3d0"
 DEVFREQ="/sys/class/devfreq"
 LPM="/sys/module/lpm_levels/parameters"
-VM="/proc/sys/vm"
-LMK="/sys/module/lowmemorykiller/parameters"
-ZRAM0="/sys/block/zram0"
-ZRAM1="/sys/block/zram1"
-ZRAM_DEV="/dev/block/zram0"
+MSM_PERF="/sys/module/msm_performance/parameters"
+ST_TOP="/dev/stune/top-app"
+ST_FORE="/dev/stune/foreground"
+ST_BACK="/dev/stune/background"
+SDA_Q="/sys/block/sda/queue"
 
 ###############################
 # Basic tool functions
@@ -74,11 +74,10 @@ change_task_affinity()
     done
 }
 
-get_total_mem_byte()
+# $1:keyword $2:nr_max_matched
+get_package_name_by_keyword()
 {
-    local mem_total_str
-    mem_total_str="$(cat /proc/meminfo | grep MemTotal)"
-    echo "${mem_total_str:16:8}"
+    echo "$(pm list package | grep "$1" | head -n "$2" | cut -d: -f2)"
 }
 
 ###############################
@@ -108,62 +107,16 @@ clear_panel()
 
 wait_until_login()
 {
+    # whether in lock screen, tested on Android 7.1 & 10.0
+    # in case of other magisk module remounting /data as RW
+    while [ "$(dumpsys window policy | grep mInputRestricted=true)" != "" ]; do
+        sleep 2
+    done
     # we doesn't have the permission to rw "/sdcard" before the user unlocks the screen
     while [ ! -f "$PANEL_FILE" ]; do
         touch "$PANEL_FILE"
         sleep 2
     done
-}
-
-###############################
-# ZRAM
-###############################
-
-stop_zram()
-{
-    # LG devices may have 2 zram block devices
-    swapoff $ZRAM_DEV
-    swapoff /dev/block/zram1
-    mutate "1" $ZRAM0/reset
-    mutate "1" $ZRAM1/reset
-    mutate "0" $ZRAM0/disksize
-    mutate "0" $ZRAM0/mem_limit
-    mutate "0" $ZRAM1/disksize
-    mutate "0" $ZRAM1/mem_limit
-}
-
-# $1:disksize $2:mem_lim $3:alg
-start_zram()
-{
-    stop_zram
-    lock_val "$3" $ZRAM0/comp_algorithm
-    # bigger zram means more blocked IO caused by the zram block device swapping out
-    lock_val "$1" $ZRAM0/disksize
-    lock_val "$2" $ZRAM0/mem_limit
-    mkswap $ZRAM_DEV
-    swapon $ZRAM_DEV -p 23333
-    # zram doesn't need much read ahead(random read)
-    lock_val "0" $ZRAM0/queue/read_ahead_kb
-    lock_val "0" $VM/page-cluster
-}
-
-get_available_comp_alg()
-{
-    # "lz4 [lzo] deflate"
-    # remove '[' and ']'
-    echo "$(cat $ZRAM0/comp_algorithm | sed "s/\[//g" | sed "s/\]//g")"
-}
-
-get_cur_comp_alg()
-{
-    local str
-    # "lz4 [lzo] deflate"
-    str="$(cat $ZRAM0/comp_algorithm)"
-    # remove "lz4 ["
-    str=${str#*[}
-    # remove "] deflate"
-    str=${str%]*}
-    echo "$str"
 }
 
 ###############################
@@ -175,6 +128,7 @@ stop_qti_perfd()
 {
     stop perf-hal-1-0
     stop perf-hal-2-0
+    usleep 500
 }
 
 # start after updating cfg
@@ -188,5 +142,5 @@ start_qti_perfd()
 update_qti_perfd()
 {
     rm /data/vendor/perfd/default_values
-    cp -af "$MODULE_PATH/$PERFCFG_REL/perfd_profiles/$1/*" "$MODULE_PATH/$PERFCFG_REL/"
+    cp -af "$MODULE_PATH/$PERFCFG_REL/perfd_profiles/$1"/* "$MODULE_PATH/$PERFCFG_REL/"
 }

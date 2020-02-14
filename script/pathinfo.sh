@@ -2,7 +2,7 @@
 # Module Path Header
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200104
+# Version: 20200214
 
 MODULE_NAME="qti-mem-opt"
 MODULE_PATH="/data/adb/modules/$MODULE_NAME"

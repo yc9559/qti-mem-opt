@@ -2,17 +2,19 @@
 # QTI memory optimization
 # https://github.com/yc9559/qti-mem-opt
 # Author: Matt Yang
-# Version: v3 (20200104)
+# Version: v4 (20200214)
 
 # Runonce after boot, to speed up the transition of power modes in powercfg
 
 # load lib
 BASEDIR="$(dirname "$0")"
-. $BASEDIR/powercfg_lib.sh
-. $BASEDIR/fscc.sh
+. $BASEDIR/libpowercfg.sh
+. $BASEDIR/libmem.sh
+. $BASEDIR/libfscc.sh
+. $BASEDIR/libadjshield.sh
 
-MEM_TOTAL="$(get_total_mem_byte)"
-ZRAM_ALGS="$(get_available_comp_alg)"
+MEM_TOTAL="$(mem_get_total_byte)"
+ZRAM_ALGS="$(mem_get_available_comp_alg)"
 
 zram_size=""
 zram_alg=""
@@ -31,19 +33,19 @@ config_reclaim_param()
     # <= 4GB
     if [ "$MEM_TOTAL" -le 4197304 ]; then
         minfree="25600,76800,102400"
-        efk="102400"
+        efk="204800"
     # 6GB or 8GB
     elif [ "$MEM_TOTAL" -le 8388608 ]; then
-        minfree="25600,76800,179200"
-        efk="153600"
+        minfree="25600,76800,128000"
+        efk="307200"
     # > 8GB
     else
-        minfree="25600,76800,256000"
-        efk="256000"
+        minfree="25600,76800,204800"
+        efk="409600"
     fi
 
     adj="200,600,901"
-    wsf="50"
+    wsf="20"
 }
 
 # $return:value(string)
@@ -92,20 +94,20 @@ config_zram()
     # ~2.8x compression ratio
     # higher disksize result in larger space-inefficient SwapCache
     case "$zram_size" in
-        0.0|0)  stop_zram ;;
-        0.5)    start_zram 512M 160M "$zram_alg" ;;
-        1.0|1)  start_zram 1024M 360M "$zram_alg" ;;
-        1.5)    start_zram 1536M 540M "$zram_alg" ;;
-        2.0|2)  start_zram 2048M 720M "$zram_alg" ;;
-        2.5)    start_zram 2560M 900M "$zram_alg" ;;
-        3.0|3)  start_zram 3072M 1080M "$zram_alg" ;;
-        4.0|4)  start_zram 4096M 1440M "$zram_alg" ;;
-        5.0|5)  start_zram 5120M 1800M "$zram_alg" ;;
-        6.0|6)  start_zram 6144M 2160M "$zram_alg" ;;
+        0.0|0)  mem_stop_zram ;;
+        0.5)    mem_start_zram 512M 160M "$zram_alg" ;;
+        1.0|1)  mem_start_zram 1024M 360M "$zram_alg" ;;
+        1.5)    mem_start_zram 1536M 540M "$zram_alg" ;;
+        2.0|2)  mem_start_zram 2048M 720M "$zram_alg" ;;
+        2.5)    mem_start_zram 2560M 900M "$zram_alg" ;;
+        3.0|3)  mem_start_zram 3072M 1080M "$zram_alg" ;;
+        4.0|4)  mem_start_zram 4096M 1440M "$zram_alg" ;;
+        5.0|5)  mem_start_zram 5120M 1800M "$zram_alg" ;;
+        6.0|6)  mem_start_zram 6144M 2160M "$zram_alg" ;;
     esac
 
     # target algorithm may be not supported
-    zram_alg="$(get_cur_comp_alg)"
+    zram_alg="$(mem_get_cur_comp_alg)"
 }
 
 save_panel()
@@ -115,18 +117,20 @@ save_panel()
     write_panel "QTI memory optimization"
     write_panel "https://github.com/yc9559/qti-mem-opt"
     write_panel "Author: Matt Yang"
-    write_panel "Version: v3 (20200104)"
+    write_panel "Version: v4 (20200214)"
     write_panel ""
     write_panel "[current status]"
+    write_panel "Last performed: $(date '+%Y-%m-%d %H:%M:%S')"
     write_panel "ZRAM size: $zram_size"
     write_panel "ZRAM compression algorithm: $zram_alg"
-    write_panel "Last performed: $(date '+%Y-%m-%d %H:%M:%S')"
     write_panel ""
     write_panel "[settings]"
     write_panel "# Available size(GB): 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 / 4 / 5 / 6"
     write_panel "zram_size=$zram_size"
     write_panel "# Available compression algorithm: $ZRAM_ALGS"
     write_panel "zram_alg=$zram_alg"
+    write_panel "# AdjShield config file path"
+    write_panel "adjshield_cfg=$adjshield_cfg"
 }
 
 # suppress stderr
@@ -146,12 +150,8 @@ config_reclaim_param
 
 lock_val "$minfree" $LMK/minfree
 lock_val "$adj" $LMK/adj
-# enable automatic kill when vmpressure >= 90
-lock_val "1" $LMK/enable_adaptive_lmk
-# please kill processes when vmpressure >= 90
-lock_val "905" $LMK/adj_max_shift
-# HUUUGE shrinker(LMK) calling interval
-lock_val "2048" $LMK/cost
+# older adaptive_lmk may have false positive vmpressure issue
+lock_val "0" $LMK/enable_adaptive_lmk
 
 lock_val "16384" $VM/min_free_kbytes
 lock_val "$efk" $VM/extra_free_kbytes
@@ -161,9 +161,6 @@ lock_val "8192" $VM/user_reserve_kbytes
 # more room for page cache
 lock_val "100" $VM/swappiness
 lock_val "120" $VM/vfs_cache_pressure
-# disable oneplus kswapd modification
-lock_val "0" $VM/breath_period
-lock_val "-1001" $VM/breath_priority
 
 # similiar to PinnerService, Mlock(Unevictable) ~200MB
 fscc_add_obj "$SYS_FRAME/framework.jar"
@@ -183,34 +180,41 @@ fscc_add_obj "$SYS_FRAME/arm/boot-core-libart.vdex"
 fscc_add_obj "$SYS_LIB/libandroid_servers.so"
 fscc_add_obj "$SYS_LIB/libandroid_runtime.so"
 fscc_add_obj "$SYS_LIB/libandroid.so"
+fscc_add_obj "$SYS_LIB/libhwui.so"
 fscc_list_append "$SYS_LIB/libhidl*"
 fscc_add_apex_lib "core-oj.jar"
 fscc_add_apex_lib "core-libart.jar"
 fscc_add_apex_lib "updatable-media.jar"
 fscc_add_apex_lib "okhttp.jar"
 fscc_add_apex_lib "bouncycastle.jar"
-fscc_add_apk_sys "com.android.systemui"
-fscc_add_apk_home
+fscc_add_dex "com.android.systemui"
+fscc_add_app_home
+fscc_add_app_ime
 fscc_start_svc
 
-# kernel reclaim threads prefer idle
-lock_val "1" /dev/stune/rt/schedtune.prefer_idle
-change_task_cgroup "kswapd" "rt" "stune"
-change_task_cgroup "oom_reaper" "rt" "stune"
+# reclaim threads do not run on prime core
+mkdir /dev/cpuset/reclaim
+lock_val "0-6" /dev/cpuset/reclaim/cpus
+change_task_cgroup "kswapd" "reclaim" "cpuset"
+change_task_cgroup "oom_reaper" "reclaim" "cpuset"
 change_task_affinity "kswapd" "7f"
-change_task_cgroup "kswapd" "foreground" "cpuset"
 change_task_affinity "oom_reaper" "7f"
-change_task_cgroup "oom_reaper" "foreground" "cpuset"
 
-# reduce swapping latency intensive processes
-mkdir /dev/memcg/lowlat
-lock_val "1" /dev/memcg/lowlat/memory.swappiness
-change_task_cgroup "system_server" "lowlat" "memcg"
-change_task_cgroup "surfaceflinger" "lowlat" "memcg"
-change_task_cgroup "composer" "lowlat" "memcg"
-change_task_cgroup "allocator" "lowlat" "memcg"
-change_task_cgroup "systemui" "lowlat" "memcg"
-change_task_cgroup "launcher" "lowlat" "memcg"
+# disable oneplus mods which kill apps fast
+lock_val "0" $LMK/batch_kill
+lock_val "0" $LMK/quick_select
+lock_val "0" $LMK/time_measure
+lock_val "N" $LMK/trust_adj_chain
+# disable memplus prefetcher which ram-boost relying on, use traditional swapping
+setprop persist.vendor.sys.memplus.enable 0
+lock_val "0" /sys/module/memplus_core/parameters/memory_plus_enabled
+# disable oneplus kswapd modification
+lock_val "0" $VM/breath_period
+lock_val "-1001" $VM/breath_priority
+
+# start adjshield
+[ ! -f "$adjshield_cfg" ] && adjshield_create_default_cfg
+adjshield_start
 
 # save mode for automatic applying mode after reboot
 save_panel

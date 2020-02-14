@@ -125,17 +125,16 @@ print_modname() {
   ui_print "QTI memory optimization"
   ui_print "https://github.com/yc9559/qti-mem-opt"
   ui_print "Author: Matt Yang"
-  ui_print "Version: v3 (20200104)"
+  ui_print "Version: v4 (20200214)"
   ui_print ""
 }
 
 # Copy/extract your module files into $MODPATH in on_install.
 
 on_install() {
-  target=`getprop ro.board.platform`
+  target="$(getprop ro.board.platform)"
   ui_print "- The platform of this device is $target"
   ui_print "- Extracting module files"
-  unzip -o "$ZIPFILE" 'system/*' -d $MODPATH >&2
   unzip -o "$ZIPFILE" 'script/*' -d $MODPATH >&2
   unzip -o "$ZIPFILE" 'bin/*' -d $MODPATH >&2
 }

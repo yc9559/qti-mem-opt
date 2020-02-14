@@ -1,7 +1,7 @@
 id=qti-mem-opt
 name=QTI memory optimization
-version=v3 (20200104)
+version=v4 (20200214)
 versionCode=1
 author=Matt Yang
-description=Memory management optimaization for Qualcomm platform. Repo: https://github.com/yc9559/qti-mem-opt
+description=Memory management optimaization for Android arm64 platforms. Repo: https://github.com/yc9559/qti-mem-opt
 minMagisk=17000

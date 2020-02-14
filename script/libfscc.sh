@@ -2,7 +2,7 @@
 # File System Cache Control Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200104
+# Version: 20200214
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -21,7 +21,7 @@ FSCC_NAME="fscache-ctrl"
 
 SYS_FRAME="/system/framework"
 SYS_LIB="/system/lib64"
-DALVIK="/data/dalvik-cache/arm64"
+DALVIK="/data/dalvik-cache"
 APEX1="/apex/com.android.art/javalib"
 APEX2="/apex/com.android.runtime/javalib"
 
@@ -54,40 +54,57 @@ fscc_add_obj()
 }
 
 # $1:package_name
-fscc_add_apk_usr()
+fscc_add_apk()
 {
-    local package_apk_path
     # pm path -> "package:/system/product/priv-app/OPSystemUI/OPSystemUI.apk"
-    package_apk_path="$(pm path "$1" | cut -d: -f2)"
-    fscc_add_obj "$(fscc_path_apk_to_oat "$package_apk_path")"
+    fscc_add_obj "$(pm path "$1" | cut -d: -f2)"
 }
 
 # $1:package_name
-fscc_add_apk_sys()
+fscc_add_dex()
 {
     local package_apk_path
     local apk_name
+
     # pm path -> "package:/system/product/priv-app/OPSystemUI/OPSystemUI.apk"
     package_apk_path="$(pm path "$1" | cut -d: -f2)"
+    # user app: OPSystemUI/OPSystemUI.apk -> OPSystemUI/oat
+    fscc_add_obj "${package_apk_path%/*}/oat"
+
     # remove apk name suffix
     apk_name="${package_apk_path%/*}"
     # remove path prefix
     apk_name="${apk_name##*/}"
-    # get dex & vdex
-    for dex in $(ls "$DALVIK" | grep "$apk_name"); do
-        fscc_add_obj "$DALVIK/$dex"
+    # system app: get dex & vdex
+    for dex in $(find "$DALVIK" | grep "$apk_name"); do
+        fscc_add_obj "$dex"
     done
 }
 
-fscc_add_apk_home()
+fscc_add_app_home()
 {
     local intent_act="android.intent.action.MAIN"
     local intent_cat="android.intent.category.HOME"
-    local ret
-    # "    sourceDir=/data/app/net.oneplus.launcher-8ZzsYNYdJ8-6TM74OstKvg==/base.apk"
-    ret="$(pm resolve-activity -a "$intent_act" -c "$intent_cat" | grep sourceDir | head -n 1)"
-    # remove sourceDir prefix
-    fscc_add_obj "$(fscc_path_apk_to_oat "${ret#*=}")"
+    local pkg_name
+    # "  packageName=com.microsoft.launcher"
+    pkg_name="$(pm resolve-activity -a "$intent_act" -c "$intent_cat" | grep packageName | head -n 1 | cut -d= -f2)"
+    # /data/dalvik-cache/arm64/system@priv-app@OPLauncher2@OPLauncher2.apk@classes.dex 16M/31M  53.2%
+    # /data/dalvik-cache/arm64/system@priv-app@OPLauncher2@OPLauncher2.apk@classes.vdex 120K/120K  100%
+    # /system/priv-app/OPLauncher2/OPLauncher2.apk 14M/30M  46.1%
+    fscc_add_apk "$pkg_name"
+    fscc_add_dex "$pkg_name"
+}
+
+fscc_add_app_ime()
+{
+    local pkg_name
+    # "      packageName=com.baidu.input_yijia"
+    pkg_name="$(ime list | grep packageName | head -n 1 | cut -d= -f2)"
+    # /data/dalvik-cache/arm/system@app@baidushurufa@baidushurufa.apk@classes.dex 5M/17M  33.1%
+    # /data/dalvik-cache/arm/system@app@baidushurufa@baidushurufa.apk@classes.vdex 2M/7M  28.1%
+    # /system/app/baidushurufa/baidushurufa.apk 1M/28M  5.71%
+    # pin apk file in memory is not valuable
+    fscc_add_dex "$pkg_name"
 }
 
 # $1:package_name
