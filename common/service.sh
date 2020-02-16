@@ -3,4 +3,5 @@
 # This will make your scripts compatible even if Magisk change its mount point in the future
 MODDIR=${0%/*}
 
-$MODDIR/script/mem_opt_main.sh
+# not relying on executable permissions
+sh $MODDIR/script/mem_opt_main.sh

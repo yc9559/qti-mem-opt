@@ -13,6 +13,7 @@ English version:
 - Prohibit kernel memory recycling threads running on the prime core, avoid congesting the main thread that is interacting and reduce energy consumption
 - Avoid swapping memory pages which are hard to compress to ZRAM, make the compression rate close to the ideal value of 2.8x
 - Customizable ZRAM size and compression algorithm(needs kernel support), ranging from 0G to 6G
+- SELinux can still be enabled
 
 中文版：
 - 纯粹的内存管理优化模块，不含其它大杂烩，支持所有主流平台
@@ -25,13 +26,13 @@ English version:
 - 禁止内核内存回收线程运行在超大核，避免拥塞正在交互的主线程并且降低能耗
 - 避免难以压缩的内存页移入ZRAM，使得压缩率接近理想值2.8x
 - 可自定义的ZRAM大小和压缩算法(需要内核支持)，较大的值会延长解压缩时间，范围从0GB到6GB
+- SELinux可以保持开启状态
 
 ## Requirement
 
 - Magisk >= 17.0
 - ARM64
 - Android 6.0+
-- SELinux will be set permissive
 
 ## Installation
 
@@ -44,6 +45,7 @@ English version:
   - 12GB内存默认开启0GB的ZRAM
 - 一加用户需要关闭“RamBoost启动加速”/“SmartBoost启动加速”这个预读器
 - 目前不支持ZSWAP
+- 目前不支持用户态LMKD
 
 ## FAQ
 
@@ -82,7 +84,7 @@ Q: 将系统常用文件固定在文件页面缓存有什么用？
 A: 在谷歌的[安卓性能调优文档](https://source.android.com/devices/tech/debug/jank_jitter#page-cache)，提到了低内存情况下页面缓存出现颠簸是长卡顿的主要原因，它在实际中表现为返回桌面时出现100ms以上的停顿，在返回桌面手势动画中尤为明显。一般来说安卓框架的`PinnerService`已经把常用文件固定在内存中，但是某些平台的设备比如一加7Pro并没有这一服务，或者已固定在内存的覆盖范围不够大导致仍然出现关键页面缓存颠簸。此模块将绝大多数系统常用文件固定在文件页面缓存，弥补已有设置的不完善之处。  
 
 Q: 防止特定APP被安卓内核态LMK清除是如何做到的？  
-A: 即使调高LMK触发阈值以及加大SWAP空间，某些关键APP可能仍然无法一直在后台存活，更不用说在低于4GB物理内存的设备上想要同时保活大型游戏和常用聊天软件了。在以往的解决方法中，需要Xposed框架实现对指定APP的保活，但是Xposed框架某些人并不喜欢(比如我)。安卓系统框架自身或者通知用户态LMKD调用`procfs`接口更改APP的`oom_score_adj`，内核态LMK在页面缓存不足介入终止`oom_score_adj`最高的进程。本模块的`AdjShield`定期遍历`procfs`匹配需要保护的APP包名，拦截对它的`oom_score_adj`的写入操作，确保需要保护的APP不会是内核态LMK最先被终止的。受保护的APP的`oom_score_adj`被固定在700，低于绝大多数后台用户进程但高于启动器，使得在内存严重不足时不会先终止启动器造成极为严重的停顿。定期遍历的间隔被设置在3分钟，每次遍历的耗时经过优化控制在40ms(Cortex-A55@0.8G)以内，几乎不会给续航和性能造成额外负担。  
+A: 即使调高LMK触发阈值以及加大SWAP空间，某些关键APP可能仍然无法一直在后台存活，更不用说在低于4GB物理内存的设备上想要同时保活大型游戏和常用聊天软件了。在以往的解决方法中，需要Xposed框架实现对指定APP的保活，但是Xposed框架某些人并不喜欢(比如我)。安卓系统框架自身或者通知用户态LMKD调用`procfs`接口更改APP的`oom_score_adj`，内核态LMK在页面缓存不足介入终止`oom_score_adj`最高的进程。本模块的`AdjShield`定期遍历`procfs`匹配需要保护的APP包名，拦截对它的`oom_score_adj`的写入操作，确保需要保护的APP不会是内核态LMK最先被终止的。受保护的APP的`oom_score_adj`被固定在700，低于绝大多数后台用户进程但高于启动器，使得在内存严重不足时不会先终止启动器造成极为严重的停顿。定期遍历的间隔被设置在2分钟，每次遍历的耗时经过优化控制在40ms(Cortex-A55@0.8G)以内，几乎不会给续航和性能造成额外负担。  
 
 Q: ZRAM和swap是什么关系？  
 A: ZRAM是swap分区的一种实现方式。在内核回收内存时，将非活动的匿名内存页换入块设备，被称为swap。这个块设备可以是独立的swap分区，可以是swapfile，也可以是ZRAM。ZRAM将换入的页面压缩后放到内存，所以相比传统的swap方式在读写延迟上低几个数量级，性能更好。  
@@ -100,3 +102,4 @@ A: 把Magisk模块跟内核模块对比是不合适的，把SimpleLMK跟LMK对�
 @卖火炬的小菇凉--改进在红米K20pro上的zram兼容性  
 @钉宫--模块配置文件放到更容易找到的位置  
 @予你长情i--发现与蝰蛇杜比音效共存版magisk模块冲突导致panel读写错误  
+@choksta --协助诊断v4版FSCC固定过多文件到内存  

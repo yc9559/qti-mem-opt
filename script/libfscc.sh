@@ -2,7 +2,7 @@
 # File System Cache Control Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200214
+# Version: 20200216
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -56,8 +56,10 @@ fscc_add_obj()
 # $1:package_name
 fscc_add_apk()
 {
-    # pm path -> "package:/system/product/priv-app/OPSystemUI/OPSystemUI.apk"
-    fscc_add_obj "$(pm path "$1" | cut -d: -f2)"
+    if [ "$1" != "" ]; then
+        # pm path -> "package:/system/product/priv-app/OPSystemUI/OPSystemUI.apk"
+        fscc_add_obj "$(pm path "$1" | head -n 1 | cut -d: -f2)"
+    fi
 }
 
 # $1:package_name
@@ -66,23 +68,26 @@ fscc_add_dex()
     local package_apk_path
     local apk_name
 
-    # pm path -> "package:/system/product/priv-app/OPSystemUI/OPSystemUI.apk"
-    package_apk_path="$(pm path "$1" | cut -d: -f2)"
-    # user app: OPSystemUI/OPSystemUI.apk -> OPSystemUI/oat
-    fscc_add_obj "${package_apk_path%/*}/oat"
+    if [ "$1" != "" ]; then
+        # pm path -> "package:/system/product/priv-app/OPSystemUI/OPSystemUI.apk"
+        package_apk_path="$(pm path "$1" | head -n 1 | cut -d: -f2)"
+        # user app: OPSystemUI/OPSystemUI.apk -> OPSystemUI/oat
+        fscc_add_obj "${package_apk_path%/*}/oat"
 
-    # remove apk name suffix
-    apk_name="${package_apk_path%/*}"
-    # remove path prefix
-    apk_name="${apk_name##*/}"
-    # system app: get dex & vdex
-    for dex in $(find "$DALVIK" | grep "$apk_name"); do
-        fscc_add_obj "$dex"
-    done
+        # remove apk name suffix
+        apk_name="${package_apk_path%/*}"
+        # remove path prefix
+        apk_name="${apk_name##*/}"
+        # system app: get dex & vdex
+        for dex in $(find "$DALVIK" | grep "$apk_name"); do
+            fscc_add_obj "$dex"
+        done
+   fi
 }
 
 fscc_add_app_home()
 {
+    # well, not working on Android 7.1
     local intent_act="android.intent.action.MAIN"
     local intent_cat="android.intent.category.HOME"
     local pkg_name
@@ -114,13 +119,23 @@ fscc_add_apex_lib()
 }
 
 # after appending fscc_file_list
-fscc_start_svc()
+fscc_start()
 {
     # multiple parameters, cannot be warped by ""
     "$MODULE_PATH/$FSCC_REL/$FSCC_NAME" -fdlb0 $fscc_file_list
 }
 
-fscc_stop_svc()
+fscc_stop()
 {
     killall "$FSCC_NAME"
+}
+
+# return:status
+fscc_status()
+{
+    if [ "$(ps -A | grep "$FSCC_NAME")" != "" ]; then
+        echo "Running, $(cat /proc/meminfo | grep Mlocked | cut -d=: -f2 | tr -d ' ') in cache."
+    else
+        echo "Not running."
+    fi
 }

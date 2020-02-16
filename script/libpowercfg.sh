@@ -2,11 +2,11 @@
 # Powercfg Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200214
+# Version: 20200216
 
-# include PATH
 BASEDIR="$(dirname "$0")"
 . $BASEDIR/pathinfo.sh
+. $BASEDIR/libcommon.sh
 
 ###############################
 # PATHs
@@ -35,25 +35,6 @@ SDA_Q="/sys/block/sda/queue"
 # Basic tool functions
 ###############################
 
-# $1:value $2:file path
-lock_val() 
-{
-    if [ -f "$2" ]; then
-        chmod 0666 "$2"
-        echo "$1" > "$2"
-        chmod 0444 "$2"
-    fi
-}
-
-# $1:value $2:file path
-mutate() 
-{
-    if [ -f "$2" ]; then
-        chmod 0666 "$2"
-        echo "$1" > "$2"
-    fi
-}
-
 # $1:task_name $2:cgroup_name $3:"cpuset"/"stune"
 change_task_cgroup()
 {
@@ -80,43 +61,34 @@ get_package_name_by_keyword()
     echo "$(pm list package | grep "$1" | head -n "$2" | cut -d: -f2)"
 }
 
-###############################
-# Config File Operator
-###############################
-
-# $1:key $return:value(string)
-read_cfg_value()
+# $1:cluster_0_id $2:cluster_0_freq
+# $3:cluster_1_id $4:cluster_1_freq
+# $5:cluster_2_id $6:cluster_2_freq
+set_min_freq()
 {
-    local value=""
-    if [ -f "$PANEL_FILE" ]; then
-        value="$(grep "^$1=" "$PANEL_FILE" | tr -d ' ' | cut -d= -f2)"
-    fi
-    echo "$value"
+    mutate "$2" $CPUFREQ/policy$1/scaling_min_freq
+    mutate "$4" $CPUFREQ/policy$3/scaling_min_freq
+    mutate "$6" $CPUFREQ/policy$5/scaling_min_freq
 }
 
-# $1:content
-write_panel()
+# $1:cluster_0_id $2:cluster_0_freq
+# $3:cluster_1_id $4:cluster_1_freq
+# $5:cluster_2_id $6:cluster_2_freq
+set_max_freq()
 {
-    echo "$1" >> "$PANEL_FILE"
+    mutate "$2" $CPUFREQ/policy$1/scaling_max_freq
+    mutate "$4" $CPUFREQ/policy$3/scaling_max_freq
+    mutate "$6" $CPUFREQ/policy$5/scaling_max_freq
 }
 
-clear_panel()
+# $1:cluster_0_id $2:cluster_0_mincpu
+# $3:cluster_1_id $4:cluster_1_mincpu
+# $5:cluster_2_id $6:cluster_2_mincpu
+set_min_cpus()
 {
-    true > "$PANEL_FILE"
-}
-
-wait_until_login()
-{
-    # whether in lock screen, tested on Android 7.1 & 10.0
-    # in case of other magisk module remounting /data as RW
-    while [ "$(dumpsys window policy | grep mInputRestricted=true)" != "" ]; do
-        sleep 2
-    done
-    # we doesn't have the permission to rw "/sdcard" before the user unlocks the screen
-    while [ ! -f "$PANEL_FILE" ]; do
-        touch "$PANEL_FILE"
-        sleep 2
-    done
+    mutate "$2" $CPU_DEV/cpu$1/core_ctl/min_cpus
+    mutate "$4" $CPU_DEV/cpu$3/core_ctl/min_cpus
+    mutate "$6" $CPU_DEV/cpu$5/core_ctl/min_cpus
 }
 
 ###############################

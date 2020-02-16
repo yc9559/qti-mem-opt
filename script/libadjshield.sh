@@ -2,7 +2,7 @@
 # AdjSheild Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200214
+# Version: 20200216
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -41,13 +41,25 @@ adjshield_create_default_cfg()
 
 adjshield_start()
 {
-    # "u:object_r:adb_data_file:s0" != "u:r:untrusted_app:s0:c512,c768"
-    setenforce 0
-    # check interval: 180 seconds
-    "$MODULE_PATH/$ADJSHIELD_REL/$ADJSHIELD_NAME" -t 180 -o "$adjshield_log" -c "$adjshield_cfg" &
+    # allow lmkd RW tmpfs created by adjshield
+    supolicy --live "allow lmkd tmpfs file {open read write}"
+    # create log file
+    touch "$adjshield_log"
+    # check interval: 120 seconds
+    "$MODULE_PATH/$ADJSHIELD_REL/$ADJSHIELD_NAME" -t 120 -o "$adjshield_log" -c "$adjshield_cfg" &
 }
 
 adjshield_stop()
 {
     killall "$ADJSHIELD_NAME"
+}
+
+# return:status
+adjshield_status()
+{
+    if [ "$(ps -A | grep "$ADJSHIELD_NAME")" != "" ]; then
+        echo "Running, see $adjshield_log for details."
+    else
+        echo "Not running."
+    fi
 }
