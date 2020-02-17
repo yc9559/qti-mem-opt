@@ -125,7 +125,7 @@ print_modname() {
   ui_print "QTI memory optimization"
   ui_print "https://github.com/yc9559/qti-mem-opt"
   ui_print "Author: Matt Yang"
-  ui_print "Version: v5 (20200216)"
+  ui_print "Version: v5.1 (20200217)"
   ui_print ""
 }
 

@@ -2,7 +2,7 @@
 # AdjSheild Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200216
+# Version: 20200217
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -41,8 +41,6 @@ adjshield_create_default_cfg()
 
 adjshield_start()
 {
-    # allow lmkd RW tmpfs created by adjshield
-    supolicy --live "allow lmkd tmpfs file {open read write}"
     # create log file
     touch "$adjshield_log"
     # check interval: 120 seconds
@@ -57,9 +55,16 @@ adjshield_stop()
 # return:status
 adjshield_status()
 {
+    local err
     if [ "$(ps -A | grep "$ADJSHIELD_NAME")" != "" ]; then
         echo "Running, see $adjshield_log for details."
     else
-        echo "Not running."
+        # "Error: Log file not found"
+        err="$(cat "$adjshield_log" | grep Error | head -n 1 | cut -d: -f2)"
+        if [ "$err" != "" ]; then
+            echo "Not running.$err."
+        else
+            echo "Not running. Unknown reason."
+        fi
     fi
 }

@@ -2,7 +2,7 @@
 # QTI memory optimization
 # https://github.com/yc9559/qti-mem-opt
 # Author: Matt Yang
-# Version: v5 (20200216)
+# Version: v5.1 (20200217)
 
 # Runonce after boot, to speed up the transition of power modes in powercfg
 
@@ -34,11 +34,11 @@ config_reclaim_param()
 
     # <= 4GB
     if [ "$MEM_TOTAL" -le 4197304 ]; then
-        minfree="25600,38400,51200,64000,76800,102400"
+        minfree="25600,38400,51200,64000,76800,76800"
         efk="102400"
     # 6GB or 8GB
     elif [ "$MEM_TOTAL" -le 8388608 ]; then
-        minfree="25600,38400,51200,64000,76800,153600"
+        minfree="25600,38400,51200,64000,76800,128000"
         efk="204800"
     # > 8GB
     else
@@ -109,7 +109,7 @@ save_panel()
     write_panel "QTI memory optimization"
     write_panel "https://github.com/yc9559/qti-mem-opt"
     write_panel "Author: Matt Yang"
-    write_panel "Version: v5 (20200216)"
+    write_panel "Version: v5.1 (20200217)"
     write_panel "Last performed: $(date '+%Y-%m-%d %H:%M:%S')"
     write_panel ""
     write_panel "[ZRAM status]"
@@ -156,15 +156,24 @@ sleep 20
 config_zram
 config_reclaim_param
 
-lock_val "$minfree" $LMK/minfree
-lock_val "$adj" $LMK/adj
 # older adaptive_lmk may have false positive vmpressure issue
 lock_val "0" $LMK/enable_adaptive_lmk
+lock_val "$minfree" $LMK/minfree
+lock_val "$adj" $LMK/adj
 
 lock_val "$efk" $VM/extra_free_kbytes
 lock_val "$wsf" $VM/watermark_scale_factor
 lock_val "100" $VM/swappiness
 lock_val "120" $VM/vfs_cache_pressure
+
+# kernel reclaim threads prefer idle
+lock_val "1" /dev/stune/rt/schedtune.prefer_idle
+change_task_cgroup "kswapd" "rt" "stune"
+change_task_cgroup "oom_reaper" "rt" "stune"
+change_task_affinity "kswapd" "7f"
+change_task_cgroup "kswapd" "foreground" "cpuset"
+change_task_affinity "oom_reaper" "7f"
+change_task_cgroup "oom_reaper" "foreground" "cpuset"
 
 # similiar to PinnerService, Mlock(Unevictable) 200~350MB
 fscc_add_obj "$SYS_FRAME/framework.jar"
@@ -197,15 +206,6 @@ fscc_add_dex "com.android.systemui"
 fscc_add_app_home
 fscc_add_app_ime
 fscc_start
-
-# kernel reclaim threads prefer idle
-lock_val "1" /dev/stune/rt/schedtune.prefer_idle
-change_task_cgroup "kswapd" "rt" "stune"
-change_task_cgroup "oom_reaper" "rt" "stune"
-change_task_affinity "kswapd" "7f"
-change_task_cgroup "kswapd" "foreground" "cpuset"
-change_task_affinity "oom_reaper" "7f"
-change_task_cgroup "oom_reaper" "foreground" "cpuset"
 
 # start adjshield
 [ ! -f "$adjshield_cfg" ] && adjshield_create_default_cfg

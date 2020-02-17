@@ -2,7 +2,7 @@
 # Linux memory tunning Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200216
+# Version: 20200217
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -23,25 +23,31 @@ ZRAM_DEV="/dev/block/zram0"
 
 mem_stop_zram()
 {
-    # swapoff all devices
-    for dev in $(blkid | grep swap | cut -d: -f1); do
-        swapoff "$dev"
-    done
+    # control swap if only the kernel support ZRAM, otherwise leave swap untouched
+    if [ -b "$ZRAM_DEV" ]; then
+        # swapoff all devices
+        for dev in $(blkid | grep swap | cut -d: -f1); do
+            swapoff "$dev"
+        done
+    fi
 }
 
 # $1:disksize $2:mem_lim $3:alg
 mem_start_zram()
 {
-    mem_stop_zram
-    mutate "1" $ZRAM/reset
-    lock_val "$3" $ZRAM/comp_algorithm
-    lock_val "$1" $ZRAM/disksize
-    lock_val "$2" $ZRAM/mem_limit
-    mkswap $ZRAM_DEV
-    swapon $ZRAM_DEV -p 23333
-    # zram doesn't need much read ahead(random read)
-    lock_val "0" $ZRAM/queue/read_ahead_kb
-    lock_val "0" $VM/page-cluster
+    # control swap if only the kernel support ZRAM, otherwise leave swap untouched
+    if [ -b "$ZRAM_DEV" ]; then
+        mem_stop_zram
+        mutate "1" $ZRAM/reset
+        lock_val "$3" $ZRAM/comp_algorithm
+        lock_val "$1" $ZRAM/disksize
+        lock_val "$2" $ZRAM/mem_limit
+        mkswap $ZRAM_DEV
+        swapon $ZRAM_DEV -p 23333
+        # zram doesn't need much read ahead(random read)
+        lock_val "0" $ZRAM/queue/read_ahead_kb
+        lock_val "0" $VM/page-cluster
+    fi
 }
 
 mem_get_available_comp_alg()
@@ -78,7 +84,7 @@ mem_zram_status()
     if [ -b "$ZRAM_DEV" ]; then
         swap_info="$(cat /proc/swaps | grep "$ZRAM_DEV")"
         if [ "$swap_info" != "" ]; then
-            echo "Enabled, size $(echo $swap_info | awk '{print $3}')kB, using $(mem_get_cur_comp_alg)."
+            echo "Enabled, size $(echo "$swap_info" | awk '{print $3}')kB, using $(mem_get_cur_comp_alg)."
         else
             echo "Disabled."
         fi

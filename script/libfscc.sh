@@ -2,7 +2,7 @@
 # File System Cache Control Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200216
+# Version: 20200217
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -79,7 +79,8 @@ fscc_add_dex()
         # remove path prefix
         apk_name="${apk_name##*/}"
         # system app: get dex & vdex
-        for dex in $(find "$DALVIK" | grep "$apk_name"); do
+        # /data/dalvik-cache/arm64/system@product@priv-app@OPSystemUI@OPSystemUI.apk@classes.dex
+        for dex in $(find "$DALVIK" | grep "@$apk_name@"); do
             fscc_add_obj "$dex"
         done
    fi
@@ -134,7 +135,7 @@ fscc_stop()
 fscc_status()
 {
     if [ "$(ps -A | grep "$FSCC_NAME")" != "" ]; then
-        echo "Running, $(cat /proc/meminfo | grep Mlocked | cut -d=: -f2 | tr -d ' ') in cache."
+        echo "Running, $(cat /proc/meminfo | grep Mlocked | cut -d: -f2 | tr -d ' ') in cache."
     else
         echo "Not running."
     fi
