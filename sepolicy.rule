@@ -1,0 +1,4 @@
+# Put sepolicy statements here
+# Example: allow { audioserver mediaserver } audioserver_tmpfs file { read write open }
+
+allow lmkd tmpfs file {open read write}

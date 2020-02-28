@@ -41,8 +41,8 @@ adjshield_create_default_cfg()
 
 adjshield_start()
 {
-    # create log file
-    touch "$adjshield_log"
+    # clear log file
+    true > "$adjshield_log"
     # check interval: 120 seconds
     "$MODULE_PATH/$ADJSHIELD_REL/$ADJSHIELD_NAME" -t 120 -o "$adjshield_log" -c "$adjshield_cfg" &
 }
@@ -57,7 +57,7 @@ adjshield_status()
 {
     local err
     if [ "$(ps -A | grep "$ADJSHIELD_NAME")" != "" ]; then
-        echo "Running, see $adjshield_log for details."
+        echo "Running. See $adjshield_log for details."
     else
         # "Error: Log file not found"
         err="$(cat "$adjshield_log" | grep Error | head -n 1 | cut -d: -f2)"

@@ -2,13 +2,9 @@
 # Module Path Header
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200217
 
-MODULE_NAME="qti-mem-opt"
-MODULE_PATH="/data/adb/modules/$MODULE_NAME"
-SCRIPT_DIR="./script"
-BIN_DIR="./bin"
+SCRIPT_DIR="/script"
+BIN_DIR="/bin"
+MODULE_PATH="$(dirname $(readlink -f "$0"))"
+MODULE_PATH="${MODULE_PATH%$SCRIPT_DIR}"
 PANEL_FILE="/sdcard/Android/panel_qti_mem.txt"
-
-# fix compatibility issues, do not use magisk busybox
-PATH="/sbin:/system/sbin:/product/bin:/apex/com.android.runtime/bin:/system/bin:/system/xbin:/odm/bin:/vendor/bin:/vendor/xbin"

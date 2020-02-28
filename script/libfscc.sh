@@ -134,8 +134,10 @@ fscc_stop()
 # return:status
 fscc_status()
 {
+    # get the correct value after waiting for fscc loading files
+    sleep 2
     if [ "$(ps -A | grep "$FSCC_NAME")" != "" ]; then
-        echo "Running, $(cat /proc/meminfo | grep Mlocked | cut -d: -f2 | tr -d ' ') in cache."
+        echo "Running. $(cat /proc/meminfo | grep Mlocked | cut -d: -f2 | tr -d ' ') in cache."
     else
         echo "Not running."
     fi

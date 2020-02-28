@@ -8,3 +8,6 @@
 # working on android 9, not 10
 ro.vendor.qti.sys.fw.bg_apps_limit=600
 ro.vendor.qti.sys.fw.bservice_limit=60
+
+# disable memplus prefetcher which ram-boost relying on, use traditional swapping
+persist.vendor.sys.memplus.enable=false

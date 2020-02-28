@@ -26,7 +26,8 @@ mem_stop_zram()
     # control swap if only the kernel support ZRAM, otherwise leave swap untouched
     if [ -b "$ZRAM_DEV" ]; then
         # swapoff all devices
-        for dev in $(blkid | grep swap | cut -d: -f1); do
+        # swap devices may be not shown in blkid
+        for dev in $(cat /proc/swaps | grep "^/" | awk '{print $1}'); do
             swapoff "$dev"
         done
     fi
@@ -43,7 +44,9 @@ mem_start_zram()
         lock_val "$1" $ZRAM/disksize
         lock_val "$2" $ZRAM/mem_limit
         mkswap $ZRAM_DEV
-        swapon $ZRAM_DEV -p 23333
+        # swapon -p not supported by BusyBox v1.31.1-osm0sis
+        # swapon $ZRAM_DEV -p 23333
+        swapon $ZRAM_DEV
         # zram doesn't need much read ahead(random read)
         lock_val "0" $ZRAM/queue/read_ahead_kb
         lock_val "0" $VM/page-cluster
@@ -52,21 +55,40 @@ mem_start_zram()
 
 mem_get_available_comp_alg()
 {
-    # "lz4 [lzo] deflate"
-    # remove '[' and ']'
-    echo "$(cat $ZRAM/comp_algorithm | sed "s/\[//g" | sed "s/\]//g")"
+    if [ -b "$ZRAM_DEV" ]; then
+        # Linux 3.x may not have comp_algorithm tunable
+        if [ -f "$ZRAM/comp_algorithm" ]; then
+            # "lz4 [lzo] deflate", remove '[' and ']'
+            echo "$(cat $ZRAM/comp_algorithm | sed "s/\[//g" | sed "s/\]//g")"
+        else
+            # lzo is the default comp_algorithm since Linux 2.6
+            echo "lzo"
+        fi
+    else
+        echo "unsupported"
+    fi
 }
 
 mem_get_cur_comp_alg()
 {
     local str
-    # "lz4 [lzo] deflate"
-    str="$(cat $ZRAM/comp_algorithm)"
-    # remove "lz4 ["
-    str="${str##*[}"
-    # remove "] deflate"
-    str="${str%%]*}"
-    echo "$str"
+    if [ -b "$ZRAM_DEV" ]; then
+        # Linux 3.x may not have comp_algorithm tunable
+        if [ -f "$ZRAM/comp_algorithm" ]; then
+            # "lz4 [lzo] deflate"
+            str="$(cat $ZRAM/comp_algorithm)"
+            # remove "lz4 ["
+            str="${str##*[}"
+            # remove "] deflate"
+            str="${str%%]*}"
+            echo "$str"
+        else
+            # lzo is the default comp_algorithm since Linux 2.6
+            echo "lzo"
+        fi
+    else
+        echo "unsupported"
+    fi
 }
 
 mem_get_total_byte()
@@ -84,7 +106,7 @@ mem_zram_status()
     if [ -b "$ZRAM_DEV" ]; then
         swap_info="$(cat /proc/swaps | grep "$ZRAM_DEV")"
         if [ "$swap_info" != "" ]; then
-            echo "Enabled, size $(echo "$swap_info" | awk '{print $3}')kB, using $(mem_get_cur_comp_alg)."
+            echo "Enabled. Size $(echo "$swap_info" | awk '{print $3}')kB, using $(mem_get_cur_comp_alg)."
         else
             echo "Disabled."
         fi

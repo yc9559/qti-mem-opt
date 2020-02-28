@@ -2,72 +2,50 @@
 # QTI memory optimization
 # https://github.com/yc9559/qti-mem-opt
 # Author: Matt Yang
-# Version: v5.1 (20200217)
+# Version: v6 (20200228)
 
 # Runonce after boot, to speed up the transition of power modes in powercfg
 
 # load lib
 BASEDIR="$(dirname "$0")"
 . $BASEDIR/libcommon.sh
-. $BASEDIR/libpowercfg.sh
 . $BASEDIR/libmem.sh
 . $BASEDIR/libfscc.sh
 . $BASEDIR/libadjshield.sh
 
 MEM_TOTAL="$(mem_get_total_byte)"
 ZRAM_ALGS="$(mem_get_available_comp_alg)"
-[ "$ZRAM_ALGS" == "" ] && ZRAM_ALGS="The kernel does not support zram"
+[ "$ZRAM_ALGS" == "unsupported" ] && ZRAM_ALGS="The kernel does not support zram"
 
 zram_size=""
 zram_alg=""
 minfree=""
-adj=""
 efk=""
-wsf=""
 
 config_reclaim_param()
 {
     # minfree: if (Cached - Unevictable) lower than threshold(unit:4KB), kill apps
-    # adj: cached_adj >= 900, work with $LMK/cost to avoid kill apps too quickly
     # efk: higher to call kswapd earlier, reduces direct memory allocation
     # wsf: lower to reduce useless page swapping, large-size reclaiming induces more page re-faults
-
-    # <= 4GB
-    if [ "$MEM_TOTAL" -le 4197304 ]; then
-        minfree="25600,38400,51200,64000,76800,76800"
-        efk="102400"
-    # 6GB or 8GB
-    elif [ "$MEM_TOTAL" -le 8388608 ]; then
-        minfree="25600,38400,51200,64000,76800,128000"
-        efk="204800"
-    # > 8GB
-    else
-        minfree="25600,38400,51200,64000,76800,204800"
-        efk="307200"
-    fi
-
-    adj="0,200,400,600,800,900"
-    wsf="50"
+    [ "$MEM_TOTAL" -le 1049326 ] && minfree="5120,10240,12800,15360,25600,38400"    && efk="25600"
+    [ "$MEM_TOTAL" -le 2098652 ] && minfree="12800,19200,25600,32000,38400,51200"   && efk="51200"
+    [ "$MEM_TOTAL" -le 3145728 ] && minfree="12800,19200,25600,32000,51200,76800"   && efk="76800"
+    [ "$MEM_TOTAL" -le 4197304 ] && minfree="12800,19200,25600,32000,76800,102400"  && efk="102400"
+    [ "$MEM_TOTAL" -le 6291456 ] && minfree="25600,38400,51200,64000,102400,128000" && efk="192000"
+    [ "$MEM_TOTAL" -le 8388608 ] && minfree="25600,38400,51200,64000,128000,153600" && efk="256000"
+    [ "$MEM_TOTAL" -gt 8388608 ] && minfree="25600,38400,51200,64000,204800,256000" && efk="409600"
 }
 
 # $return:value(string)
 calc_zram_default_size()
 {
-    local value=""
-    # <= 4GB
-    if [ "$MEM_TOTAL" -le 4197304 ]; then
-        value="1"
-    # == 6GB
-    elif [ "$MEM_TOTAL" -le 6291456 ]; then
-        value="2"
-    # == 8GB
-    elif [ "$MEM_TOTAL" -le 8388608 ]; then
-        value="3"
-    # >= 8GB
-    else
-        value="0"
-    fi
-    echo "$value"
+    local val
+    [ "$MEM_TOTAL" -le 2098652 ] && val="0.5"
+    [ "$MEM_TOTAL" -le 4197304 ] && val="1"
+    [ "$MEM_TOTAL" -le 6291456 ] && val="2"
+    [ "$MEM_TOTAL" -le 8388608 ] && val="3"
+    [ "$MEM_TOTAL" -gt 8388608 ] && val="0"
+    echo "$val"
 }
 
 config_zram()
@@ -81,10 +59,7 @@ config_zram()
 
     # load algorithm from file, use lz4 as default
     zram_alg="$(read_cfg_value zram_alg)"
-    case "$zram_alg" in
-        lzo|lzo-rle|lz4|deflate|zstd|zlib|xz) ;;
-        *) zram_alg="lz4" ;;
-    esac
+    [ "$zram_alg" == "" ] && zram_alg="lz4"
 
     # ~2.8x compression ratio
     # higher disksize result in larger space-inefficient SwapCache
@@ -100,6 +75,9 @@ config_zram()
         5.0|5)  mem_start_zram 5120M 1800M "$zram_alg" ;;
         6.0|6)  mem_start_zram 6144M 2160M "$zram_alg" ;;
     esac
+
+    # target algorithm may be not supported
+    zram_alg="$(mem_get_cur_comp_alg)"
 }
 
 save_panel()
@@ -109,7 +87,7 @@ save_panel()
     write_panel "QTI memory optimization"
     write_panel "https://github.com/yc9559/qti-mem-opt"
     write_panel "Author: Matt Yang"
-    write_panel "Version: v5.1 (20200217)"
+    write_panel "Version: v6 (20200228)"
     write_panel "Last performed: $(date '+%Y-%m-%d %H:%M:%S')"
     write_panel ""
     write_panel "[ZRAM status]"
@@ -121,7 +99,7 @@ save_panel()
     write_panel "[AdjShield status]"
     write_panel "$(adjshield_status)"
     write_panel ""
-    write_panel "[settings]"
+    write_panel "[Settings]"
     write_panel "# Available size(GB): 0 / 0.5 / 1 / 1.5 / 2 / 2.5 / 3 / 4 / 5 / 6"
     write_panel "zram_size=$zram_size"
     write_panel "# Available compression algorithm: $ZRAM_ALGS"
@@ -133,8 +111,10 @@ save_panel()
 # copy of common\system.prop
 setprop ro.vendor.qti.sys.fw.bg_apps_limit 600
 setprop ro.vendor.qti.sys.fw.bservice_limit 60
-# speed up zram0 swapoff
-lock_val "0" $VM/swappiness
+# disable memplus prefetcher which ram-boost relying on, use traditional swapping
+setprop persist.vendor.sys.memplus.enable "false"
+lock_val "0" /sys/module/memplus_core/parameters/memory_plus_enabled
+lock_val "0" /proc/sys/vm/memory_plus
 
 wait_until_login
 
@@ -144,11 +124,14 @@ lock_val "0" $LMK/quick_select
 lock_val "0" $LMK/time_measure
 lock_val "N" $LMK/trust_adj_chain
 # disable memplus prefetcher which ram-boost relying on, use traditional swapping
-setprop persist.vendor.sys.memplus.enable 0
+setprop persist.vendor.sys.memplus.enable "false"
 lock_val "0" /sys/module/memplus_core/parameters/memory_plus_enabled
+lock_val "0" /proc/sys/vm/memory_plus
 # disable oneplus kswapd modification
 lock_val "0" $VM/breath_period
 lock_val "-1001" $VM/breath_priority
+# disable Qualcomm per process reclaim for low-tier or mid-tier devices
+lock_val "0" /sys/module/process_reclaim/parameters/enable_process_reclaim
 
 # Xiaomi K20pro need more time
 sleep 20
@@ -158,29 +141,34 @@ config_reclaim_param
 
 # older adaptive_lmk may have false positive vmpressure issue
 lock_val "0" $LMK/enable_adaptive_lmk
+# almk will take no action if CACHED_APP_MAX_ADJ == 906
+# lock_val "960" $LMK/adj_max_shift
+# just unify param
 lock_val "$minfree" $LMK/minfree
-lock_val "$adj" $LMK/adj
+# HUGE shrinker(LMK) calling interval
+lock_val "1024" $LMK/cost
 
+# reclaim memory earlier
 lock_val "$efk" $VM/extra_free_kbytes
-lock_val "$wsf" $VM/watermark_scale_factor
+# considering old platforms doesn't have this knob
+lock_val "20" $VM/watermark_scale_factor
+# it will be better if swappiness can be set above 100
 lock_val "100" $VM/swappiness
+# drop a little more inode cache
 lock_val "120" $VM/vfs_cache_pressure
 
-# kernel reclaim threads prefer idle
-lock_val "1" /dev/stune/rt/schedtune.prefer_idle
-change_task_cgroup "kswapd" "rt" "stune"
-change_task_cgroup "oom_reaper" "rt" "stune"
+# kernel reclaim threads run on more power-efficient cores
+change_task_nice "kswapd" "-20"
+change_task_nice "oom_reaper" "-20"
 change_task_affinity "kswapd" "7f"
-change_task_cgroup "kswapd" "foreground" "cpuset"
 change_task_affinity "oom_reaper" "7f"
+change_task_cgroup "kswapd" "foreground" "cpuset"
 change_task_cgroup "oom_reaper" "foreground" "cpuset"
 
 # similiar to PinnerService, Mlock(Unevictable) 200~350MB
 fscc_add_obj "$SYS_FRAME/framework.jar"
 fscc_add_obj "$SYS_FRAME/services.jar"
 fscc_add_obj "$SYS_FRAME/telephony-common.jar"
-fscc_add_obj "$SYS_FRAME/QPerformance.jar"
-fscc_add_obj "$SYS_FRAME/UxPerformance.jar"
 fscc_add_obj "$SYS_FRAME/qcnvitems.jar"
 fscc_add_obj "$SYS_FRAME/oat"
 fscc_add_obj "$SYS_FRAME/arm64"
@@ -196,19 +184,23 @@ fscc_add_obj "$SYS_LIB/libandroidfw.so"
 fscc_add_obj "$SYS_LIB/libandroid.so"
 fscc_add_obj "$SYS_LIB/libhwui.so"
 fscc_add_obj "$SYS_LIB/libjpeg.so"
-fscc_list_append "$SYS_LIB/libhidl*"
 fscc_add_apex_lib "core-oj.jar"
 fscc_add_apex_lib "core-libart.jar"
 fscc_add_apex_lib "updatable-media.jar"
 fscc_add_apex_lib "okhttp.jar"
 fscc_add_apex_lib "bouncycastle.jar"
-fscc_add_dex "com.android.systemui"
-fscc_add_app_home
-fscc_add_app_ime
+# do not pin too many files on low memory devices
+if [ "$MEM_TOTAL" -gt 2098652 ]; then
+    fscc_add_dex "com.android.systemui"
+    fscc_add_app_home
+    fscc_add_app_ime
+fi
+fscc_stop
 fscc_start
 
 # start adjshield
 [ ! -f "$adjshield_cfg" ] && adjshield_create_default_cfg
+adjshield_stop
 adjshield_start
 
 # save mode for automatic applying mode after reboot
