@@ -53,7 +53,7 @@ ui_print ""
 ui_print "* QTI memory optimization"
 ui_print "* https://github.com/yc9559/qti-mem-opt"
 ui_print "* Author: Matt Yang"
-ui_print "* Version: v6 (20200228)"
+ui_print "* Version: v6.1 (20200229)"
 ui_print ""
 
 # Only some special files require specific permissions

@@ -1,4 +1,6 @@
-# Memory management optimaization for Android platforms
+# QTI-mem-opt
+
+Memory management optimaization for Android platforms.  
 
 ## Feature
 
@@ -40,10 +42,9 @@ English version:
 - 安装本模块重启，打开`/sdcard/Android/panel_qti_mem.txt`修改想要的ZRAM大小和压缩算法，重启后生效
 - 打开`/sdcard/Android/panel_adjshield.txt`添加需要保持在后台的APP包名，重启后生效
 - ZRAM大小默认值如下：
-  - 1-2GB内存默认开启0.5GB的ZRAM
-  - 3-4GB内存默认开启1GB的ZRAM
-  - 6GB内存默认开启2GB的ZRAM
-  - 8GB内存默认开启3GB的ZRAM
+  - 1-2GB内存默认开启1GB的ZRAM
+  - 3-4GB内存默认开启2GB的ZRAM
+  - 6-8GB内存默认开启4GB的ZRAM
   - 12GB内存默认开启0GB的ZRAM
 - 目前不支持ZSWAP
 - 目前不支持用户态LMK

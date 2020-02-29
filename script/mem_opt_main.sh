@@ -2,7 +2,7 @@
 # QTI memory optimization
 # https://github.com/yc9559/qti-mem-opt
 # Author: Matt Yang
-# Version: v6 (20200228)
+# Version: v6.1 (20200229)
 
 # Runonce after boot, to speed up the transition of power modes in powercfg
 
@@ -13,7 +13,7 @@ BASEDIR="$(dirname "$0")"
 . $BASEDIR/libfscc.sh
 . $BASEDIR/libadjshield.sh
 
-MEM_TOTAL="$(mem_get_total_byte)"
+TMEM="$(mem_get_total_byte)"
 ZRAM_ALGS="$(mem_get_available_comp_alg)"
 [ "$ZRAM_ALGS" == "unsupported" ] && ZRAM_ALGS="The kernel does not support zram"
 
@@ -27,24 +27,23 @@ config_reclaim_param()
     # minfree: if (Cached - Unevictable) lower than threshold(unit:4KB), kill apps
     # efk: higher to call kswapd earlier, reduces direct memory allocation
     # wsf: lower to reduce useless page swapping, large-size reclaiming induces more page re-faults
-    [ "$MEM_TOTAL" -le 1049326 ] && minfree="5120,10240,12800,15360,25600,38400"    && efk="25600"
-    [ "$MEM_TOTAL" -le 2098652 ] && minfree="12800,19200,25600,32000,38400,51200"   && efk="51200"
-    [ "$MEM_TOTAL" -le 3145728 ] && minfree="12800,19200,25600,32000,51200,76800"   && efk="76800"
-    [ "$MEM_TOTAL" -le 4197304 ] && minfree="12800,19200,25600,32000,76800,102400"  && efk="102400"
-    [ "$MEM_TOTAL" -le 6291456 ] && minfree="25600,38400,51200,64000,102400,128000" && efk="192000"
-    [ "$MEM_TOTAL" -le 8388608 ] && minfree="25600,38400,51200,64000,128000,153600" && efk="256000"
-    [ "$MEM_TOTAL" -gt 8388608 ] && minfree="25600,38400,51200,64000,204800,256000" && efk="409600"
+    [ "$TMEM" -gt 8388608 ] && minfree="25600,38400,51200,64000,204800,256000" && efk="409600"
+    [ "$TMEM" -le 8388608 ] && minfree="25600,38400,51200,64000,128000,153600" && efk="256000"
+    [ "$TMEM" -le 6291456 ] && minfree="25600,38400,51200,64000,102400,128000" && efk="192000"
+    [ "$TMEM" -le 4197304 ] && minfree="12800,19200,25600,32000,76800,102400"  && efk="102400"
+    [ "$TMEM" -le 3145728 ] && minfree="12800,19200,25600,32000,51200,76800"   && efk="76800"
+    [ "$TMEM" -le 2098652 ] && minfree="12800,19200,25600,32000,38400,51200"   && efk="51200"
+    [ "$TMEM" -le 1049326 ] && minfree="5120,10240,12800,15360,25600,38400"    && efk="25600"
 }
 
 # $return:value(string)
 calc_zram_default_size()
 {
     local val
-    [ "$MEM_TOTAL" -le 2098652 ] && val="0.5"
-    [ "$MEM_TOTAL" -le 4197304 ] && val="1"
-    [ "$MEM_TOTAL" -le 6291456 ] && val="2"
-    [ "$MEM_TOTAL" -le 8388608 ] && val="3"
-    [ "$MEM_TOTAL" -gt 8388608 ] && val="0"
+    [ "$TMEM" -gt 8388608 ] && val="0"
+    [ "$TMEM" -le 8388608 ] && val="4"
+    [ "$TMEM" -le 4197304 ] && val="2"
+    [ "$TMEM" -le 2098652 ] && val="1"
     echo "$val"
 }
 
@@ -87,7 +86,7 @@ save_panel()
     write_panel "QTI memory optimization"
     write_panel "https://github.com/yc9559/qti-mem-opt"
     write_panel "Author: Matt Yang"
-    write_panel "Version: v6 (20200228)"
+    write_panel "Version: v6.1 (20200229)"
     write_panel "Last performed: $(date '+%Y-%m-%d %H:%M:%S')"
     write_panel ""
     write_panel "[ZRAM status]"
@@ -145,13 +144,13 @@ lock_val "0" $LMK/enable_adaptive_lmk
 # lock_val "960" $LMK/adj_max_shift
 # just unify param
 lock_val "$minfree" $LMK/minfree
-# HUGE shrinker(LMK) calling interval
-lock_val "1024" $LMK/cost
+# HUUUGE shrinker(LMK) calling interval
+lock_val "2048" $LMK/cost
 
 # reclaim memory earlier
 lock_val "$efk" $VM/extra_free_kbytes
 # considering old platforms doesn't have this knob
-lock_val "20" $VM/watermark_scale_factor
+lock_val "30" $VM/watermark_scale_factor
 # it will be better if swappiness can be set above 100
 lock_val "100" $VM/swappiness
 # drop a little more inode cache
@@ -190,11 +189,9 @@ fscc_add_apex_lib "updatable-media.jar"
 fscc_add_apex_lib "okhttp.jar"
 fscc_add_apex_lib "bouncycastle.jar"
 # do not pin too many files on low memory devices
-if [ "$MEM_TOTAL" -gt 2098652 ]; then
-    fscc_add_dex "com.android.systemui"
-    fscc_add_app_home
-    fscc_add_app_ime
-fi
+[ "$TMEM" -gt 2098652 ] && fscc_add_dex "com.android.systemui"
+[ "$TMEM" -gt 4197304 ] && fscc_add_app_home
+[ "$TMEM" -gt 4197304 ] && fscc_add_app_ime
 fscc_stop
 fscc_start
 

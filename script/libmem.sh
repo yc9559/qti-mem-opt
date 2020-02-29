@@ -2,7 +2,7 @@
 # Linux memory tunning Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200217
+# Version: 20200228
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -43,7 +43,9 @@ mem_start_zram()
         lock_val "$3" $ZRAM/comp_algorithm
         lock_val "$1" $ZRAM/disksize
         lock_val "$2" $ZRAM/mem_limit
-        mkswap $ZRAM_DEV
+        # holy crap, mkswap in busybox(32bit) cannot mkswap >= 4GB
+        /system/bin/mkswap $ZRAM_DEV
+        /vendor/bin/mkswap $ZRAM_DEV
         # swapon -p not supported by BusyBox v1.31.1-osm0sis
         # swapon $ZRAM_DEV -p 23333
         swapon $ZRAM_DEV

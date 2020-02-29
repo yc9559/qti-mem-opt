@@ -1,6 +1,6 @@
 id=qti-mem-opt
 name=QTI memory optimization
-version=v6 (20200228)
+version=v6.1 (20200229)
 versionCode=5
 author=Matt Yang
 description=Memory management optimaization for Android platforms. Repo: https://github.com/yc9559/qti-mem-opt
