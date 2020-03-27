@@ -2,7 +2,7 @@
 # AdjSheild Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200217
+# Version: 20200316
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -43,8 +43,8 @@ adjshield_start()
 {
     # clear log file
     true > "$adjshield_log"
-    # check interval: 120 seconds
-    "$MODULE_PATH/$ADJSHIELD_REL/$ADJSHIELD_NAME" -t 120 -o "$adjshield_log" -c "$adjshield_cfg" &
+    # check interval: 120 seconds - Deprecated, use event driven instead
+    "$MODULE_PATH/$ADJSHIELD_REL/$ADJSHIELD_NAME" -o "$adjshield_log" -c "$adjshield_cfg" &
 }
 
 adjshield_stop()

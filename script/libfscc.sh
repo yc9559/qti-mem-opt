@@ -2,7 +2,7 @@
 # File System Cache Control Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200217
+# Version: 20200323
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -21,6 +21,7 @@ FSCC_NAME="fscache-ctrl"
 
 SYS_FRAME="/system/framework"
 SYS_LIB="/system/lib64"
+VDR_LIB="/vendor/lib64"
 DALVIK="/data/dalvik-cache"
 APEX1="/apex/com.android.art/javalib"
 APEX2="/apex/com.android.runtime/javalib"

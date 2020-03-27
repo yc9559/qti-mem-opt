@@ -2,7 +2,7 @@
 # QTI memory optimization
 # https://github.com/yc9559/qti-mem-opt
 # Author: Matt Yang
-# Version: v6.1 (20200229)
+# Version: v7 (20200327)
 
 # Runonce after boot, to speed up the transition of power modes in powercfg
 
@@ -27,13 +27,13 @@ config_reclaim_param()
     # minfree: if (Cached - Unevictable) lower than threshold(unit:4KB), kill apps
     # efk: higher to call kswapd earlier, reduces direct memory allocation
     # wsf: lower to reduce useless page swapping, large-size reclaiming induces more page re-faults
-    [ "$TMEM" -gt 8388608 ] && minfree="25600,38400,51200,64000,204800,256000" && efk="409600"
-    [ "$TMEM" -le 8388608 ] && minfree="25600,38400,51200,64000,128000,153600" && efk="256000"
-    [ "$TMEM" -le 6291456 ] && minfree="25600,38400,51200,64000,102400,128000" && efk="192000"
-    [ "$TMEM" -le 4197304 ] && minfree="12800,19200,25600,32000,76800,102400"  && efk="102400"
-    [ "$TMEM" -le 3145728 ] && minfree="12800,19200,25600,32000,51200,76800"   && efk="76800"
-    [ "$TMEM" -le 2098652 ] && minfree="12800,19200,25600,32000,38400,51200"   && efk="51200"
-    [ "$TMEM" -le 1049326 ] && minfree="5120,10240,12800,15360,25600,38400"    && efk="25600"
+    [ "$TMEM" -gt 8388608 ] && minfree="25600,38400,51200,64000,256000,307200" && efk="204800"
+    [ "$TMEM" -le 8388608 ] && minfree="25600,38400,51200,64000,153600,179200" && efk="128000"
+    [ "$TMEM" -le 6291456 ] && minfree="25600,38400,51200,64000,102400,128000" && efk="102400"
+    [ "$TMEM" -le 4197304 ] && minfree="12800,19200,25600,32000,76800,102400"  && efk="76800"
+    [ "$TMEM" -le 3145728 ] && minfree="12800,19200,25600,32000,51200,76800"   && efk="51200"
+    [ "$TMEM" -le 2098652 ] && minfree="12800,19200,25600,32000,38400,51200"   && efk="25600"
+    [ "$TMEM" -le 1049326 ] && minfree="5120,10240,12800,15360,25600,38400"    && efk="19200"
 }
 
 # $return:value(string)
@@ -86,7 +86,7 @@ save_panel()
     write_panel "QTI memory optimization"
     write_panel "https://github.com/yc9559/qti-mem-opt"
     write_panel "Author: Matt Yang"
-    write_panel "Version: v6.1 (20200229)"
+    write_panel "Version: v7 (20200327)"
     write_panel "Last performed: $(date '+%Y-%m-%d %H:%M:%S')"
     write_panel ""
     write_panel "[ZRAM status]"
@@ -115,7 +115,9 @@ setprop persist.vendor.sys.memplus.enable "false"
 lock_val "0" /sys/module/memplus_core/parameters/memory_plus_enabled
 lock_val "0" /proc/sys/vm/memory_plus
 
+mem_close_zram
 wait_until_login
+mem_open_zram
 
 # disable oneplus mods which kill apps fast
 lock_val "0" $LMK/batch_kill
@@ -133,7 +135,7 @@ lock_val "-1001" $VM/breath_priority
 lock_val "0" /sys/module/process_reclaim/parameters/enable_process_reclaim
 
 # Xiaomi K20pro need more time
-sleep 20
+sleep 15
 
 config_zram
 config_reclaim_param
@@ -145,28 +147,27 @@ lock_val "0" $LMK/enable_adaptive_lmk
 # just unify param
 lock_val "$minfree" $LMK/minfree
 # HUUUGE shrinker(LMK) calling interval
-lock_val "2048" $LMK/cost
+lock_val "4096" $LMK/cost
 
 # reclaim memory earlier
 lock_val "$efk" $VM/extra_free_kbytes
 # considering old platforms doesn't have this knob
 lock_val "30" $VM/watermark_scale_factor
 # it will be better if swappiness can be set above 100
-lock_val "100" $VM/swappiness
+[ "$(cat $VM/swappiness)" -le 100 ] && lock_val "100" $VM/swappiness
 # drop a little more inode cache
 lock_val "120" $VM/vfs_cache_pressure
 
 # kernel reclaim threads run on more power-efficient cores
-change_task_nice "kswapd" "-20"
-change_task_nice "oom_reaper" "-20"
+change_task_nice "kswapd" "-2"
+change_task_nice "oom_reaper" "-2"
 change_task_affinity "kswapd" "7f"
 change_task_affinity "oom_reaper" "7f"
-change_task_cgroup "kswapd" "foreground" "cpuset"
-change_task_cgroup "oom_reaper" "foreground" "cpuset"
 
 # similiar to PinnerService, Mlock(Unevictable) 200~350MB
 fscc_add_obj "$SYS_FRAME/framework.jar"
 fscc_add_obj "$SYS_FRAME/services.jar"
+fscc_add_obj "$SYS_FRAME/ext.jar"
 fscc_add_obj "$SYS_FRAME/telephony-common.jar"
 fscc_add_obj "$SYS_FRAME/qcnvitems.jar"
 fscc_add_obj "$SYS_FRAME/oat"
@@ -183,12 +184,16 @@ fscc_add_obj "$SYS_LIB/libandroidfw.so"
 fscc_add_obj "$SYS_LIB/libandroid.so"
 fscc_add_obj "$SYS_LIB/libhwui.so"
 fscc_add_obj "$SYS_LIB/libjpeg.so"
+fscc_add_obj "$VDR_LIB/libssc.so"
+fscc_add_obj "$VDR_LIB/libgsl.so"
+fscc_add_obj "$VDR_LIB/sensors.ssc.so"
 fscc_add_apex_lib "core-oj.jar"
 fscc_add_apex_lib "core-libart.jar"
 fscc_add_apex_lib "updatable-media.jar"
 fscc_add_apex_lib "okhttp.jar"
 fscc_add_apex_lib "bouncycastle.jar"
 # do not pin too many files on low memory devices
+[ "$TMEM" -gt 2098652 ] && fscc_add_apk "com.android.systemui"
 [ "$TMEM" -gt 2098652 ] && fscc_add_dex "com.android.systemui"
 [ "$TMEM" -gt 4197304 ] && fscc_add_app_home
 [ "$TMEM" -gt 4197304 ] && fscc_add_app_ime
