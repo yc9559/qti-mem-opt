@@ -2,7 +2,7 @@
 # QTI memory optimization
 # https://github.com/yc9559/qti-mem-opt
 # Author: Matt Yang
-# Version: v7 (20200327)
+# Version: v7.1 (20200328)
 
 # Runonce after boot, to speed up the transition of power modes in powercfg
 
@@ -15,7 +15,7 @@ BASEDIR="$(dirname "$0")"
 
 TMEM="$(mem_get_total_byte)"
 ZRAM_ALGS="$(mem_get_available_comp_alg)"
-[ "$ZRAM_ALGS" == "unsupported" ] && ZRAM_ALGS="The kernel does not support zram"
+[ "$ZRAM_ALGS" == "unsupported" ] && ZRAM_ALGS="<unsupported>"
 
 zram_size=""
 zram_alg=""
@@ -86,7 +86,7 @@ save_panel()
     write_panel "QTI memory optimization"
     write_panel "https://github.com/yc9559/qti-mem-opt"
     write_panel "Author: Matt Yang"
-    write_panel "Version: v7 (20200327)"
+    write_panel "Version: v7.1 (20200328)"
     write_panel "Last performed: $(date '+%Y-%m-%d %H:%M:%S')"
     write_panel ""
     write_panel "[ZRAM status]"
@@ -115,9 +115,10 @@ setprop persist.vendor.sys.memplus.enable "false"
 lock_val "0" /sys/module/memplus_core/parameters/memory_plus_enabled
 lock_val "0" /proc/sys/vm/memory_plus
 
-mem_close_zram
+# we don't know when system will init ZRAM
+mem_stop_zram
 wait_until_login
-mem_open_zram
+mem_stop_zram
 
 # disable oneplus mods which kill apps fast
 lock_val "0" $LMK/batch_kill

@@ -2,7 +2,7 @@
 # Linux memory tunning Library
 # https://github.com/yc9559/
 # Author: Matt Yang
-# Version: 20200317
+# Version: 20200327
 
 # include PATH
 BASEDIR="$(dirname "$0")"
@@ -16,7 +16,6 @@ VM="/proc/sys/vm"
 LMK="/sys/module/lowmemorykiller/parameters"
 ZRAM="/sys/block/zram0"
 ZRAM_DEV="/dev/block/zram0"
-ZRAM_CTL="/sys/class/zram-control"
 
 ###############################
 # ZRAM tool functions
@@ -25,7 +24,7 @@ ZRAM_CTL="/sys/class/zram-control"
 # return: true/false
 mem_has_zram_mod()
 {
-    if [ -b "$ZRAM_DEV" ] || [ -d "$ZRAM_CTL" ]; then
+    if [ -b "$ZRAM_DEV" ]; then
         echo "true"
     else
         echo "false"
@@ -35,9 +34,12 @@ mem_has_zram_mod()
 # $1:binary $2:arg
 mem_fallback()
 {
+    # try binary provided by vendor toybox
     "/vendor/bin/$1" "$2"
     [ "$?" == "0" ] && return
+    # try binary provided by system toybox
     "/system/bin/$1" "$2"
+    # try binary provided by magisk busybox
     [ "$?" == "0" ] && return
     "$1" "$2"
 }
@@ -73,28 +75,6 @@ mem_start_zram()
     # zram doesn't need much read ahead(random read)
     lock_val "0" $ZRAM/queue/read_ahead_kb
     lock_val "0" $VM/page-cluster
-}
-
-mem_close_zram()
-{
-    # control swap if only the kernel support ZRAM, otherwise leave swap untouched
-    [ "$(mem_has_zram_mod)" == "false" ] && return
-
-    mem_stop_zram
-    for i in 0 1 2 3 4; do
-        echo $i > $ZRAM_CTL/hot_remove
-    done
-}
-
-mem_open_zram()
-{
-    # control swap if only the kernel support ZRAM, otherwise leave swap untouched
-    [ "$(mem_has_zram_mod)" == "false" ] && return
-
-    local id
-    id="$(cat $ZRAM_CTL/hot_add)"
-    ZRAM="/sys/block/zram$id"
-    ZRAM_DEV="/dev/block/zram$id"
 }
 
 mem_get_available_comp_alg()
@@ -149,7 +129,7 @@ mem_zram_status()
 {
     # check whether the zram block device exists
     if [ "$(mem_has_zram_mod)" == "false" ]; then
-        echo "ZRAM is not supported by kernel."
+        echo "Ignored. Unsupported by kernel."
         return
     fi
 
@@ -158,6 +138,6 @@ mem_zram_status()
     if [ "$swap_info" != "" ]; then
         echo "Enabled. Size $(echo "$swap_info" | awk '{print $3}')kB, using $(mem_get_cur_comp_alg)."
     else
-        echo "Disabled."
+        echo "Disabled by user."
     fi
 }
